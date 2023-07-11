@@ -19,42 +19,105 @@
 
 package org.killbill.billing.plugin.currency;
 
+import java.math.BigDecimal;
+import java.sql.SQLException;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
+import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
+import org.joda.time.DateTime;
+import org.jooby.MediaType;
+import org.jooby.Result;
+import org.jooby.Results;
+import org.jooby.Status;
+import org.jooby.mvc.Body;
 import org.jooby.mvc.GET;
 import org.jooby.mvc.Local;
+import org.jooby.mvc.POST;
 import org.jooby.mvc.Path;
+import org.killbill.billing.catalog.api.Currency;
+import org.killbill.billing.currency.api.Rate;
+import org.killbill.billing.osgi.libs.killbill.OSGIKillbillClock;
+import org.killbill.billing.plugin.currency.dao.CurrencyDao;
 import org.killbill.billing.tenant.api.Tenant;
+import org.killbill.billing.util.entity.Entity;
+import org.killbill.clock.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 @Singleton
-@Path("/")
+@Path("/rates")
 public class CurrencyServlet {
 
     private static final Logger logger = LoggerFactory.getLogger(CurrencyServlet.class);
 
-    public CurrencyServlet() {
+    private final CurrencyDao dao;
+    private final StaticCurrencyPluginApi api;
+    private final OSGIKillbillClock clock;
+
+    @Inject
+    public CurrencyServlet(final CurrencyDao dao,
+                           final StaticCurrencyPluginApi api,
+                           final OSGIKillbillClock clock) {
+        this.dao = dao;
+        this.api = api;
+        this.clock = clock;
     }
 
-    /**
-     * Kill Bill automatically injects Tenant object in this method when this end point is accessed with the X-Killbill-ApiKey and X-Killbill-ApiSecret headers
-     *
-     * @param tenant
-     */
+    @POST
+    public Result addCurrencyRates(@Body final CurrencyRatesJson currencyRatesJson,
+                                   @Local @Named("killbill_tenant") final Optional<Tenant> tenant) throws SQLException {
+        dao.addCurrencyRates(currencyRatesJson.baseCurrency,
+                             currencyRatesJson.conversionDate,
+                             currencyRatesJson.rates,
+                             clock.getClock().getUTCNow(),
+                             tenant.map(Entity::getId).orElse(null));
+        return Results.with(Status.CREATED).header("location", "/plugins/killbill-currency/rates?baseCurrency=" + currencyRatesJson.baseCurrency);
+    }
+
     @GET
-    public void hello(@Local @Named("killbill_tenant") final Optional<Tenant> tenant) {
-        // Find me on http://127.0.0.1:8080/plugins/currency-plugin
-        logger.info("Hello world");
-        if (tenant != null && tenant.isPresent()) {
-            logger.info("tenant is available");
-            Tenant t1 = tenant.get();
-            logger.info("tenant id:" + t1.getId());
+    public Result getCurrencyRates(@Named("baseCurrency") final Currency baseCurrency,
+                                   @Named("conversionDate") final Optional<DateTime> conversionDate,
+                                   @Local @Named("killbill_tenant") final Optional<Tenant> tenant) throws SQLException {
+        final Set<Rate> currencyRates;
+        if (conversionDate.isPresent()) {
+            currencyRates = api.getRates(baseCurrency, conversionDate.get());
         } else {
-            logger.info("tenant is not available");
+            currencyRates = api.getCurrentRates(baseCurrency);
+        }
+        return Results.ok(currencyRates).type(MediaType.json);
+    }
+
+    private static final class CurrencyRatesJson {
+
+        public String baseCurrency;
+        public DateTime conversionDate;
+        public Map<String, BigDecimal> rates;
+
+        @JsonCreator
+        public CurrencyRatesJson(@JsonProperty("baseCurrency") final String baseCurrency,
+                                 @JsonProperty("conversionDate") final DateTime conversionDate,
+                                 @JsonProperty("rates") final Map<String, BigDecimal> rates) {
+            this.baseCurrency = baseCurrency;
+            this.conversionDate = conversionDate;
+            this.rates = rates;
+        }
+
+        @Override
+        public String toString() {
+            return "CurrencyRatesJson{" +
+                   "baseCurrency='" + baseCurrency + '\'' +
+                   ", conversionDate=" + conversionDate +
+                   ", rates=" + rates +
+                   '}';
         }
     }
 }

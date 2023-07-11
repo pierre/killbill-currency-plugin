@@ -25,6 +25,7 @@ import java.util.Properties;
 import javax.servlet.Servlet;
 import javax.servlet.http.HttpServlet;
 
+import org.killbill.billing.currency.plugin.api.CurrencyPluginApi;
 import org.killbill.billing.osgi.api.Healthcheck;
 import org.killbill.billing.osgi.api.OSGIPluginProperties;
 import org.killbill.billing.osgi.libs.killbill.KillbillActivatorBase;
@@ -32,11 +33,12 @@ import org.killbill.billing.plugin.api.notification.PluginConfigurationEventHand
 import org.killbill.billing.plugin.core.config.PluginEnvironmentConfig;
 import org.killbill.billing.plugin.core.resources.jooby.PluginApp;
 import org.killbill.billing.plugin.core.resources.jooby.PluginAppBuilder;
+import org.killbill.billing.plugin.currency.dao.CurrencyDao;
 import org.osgi.framework.BundleContext;
 
 public class CurrencyActivator extends KillbillActivatorBase {
 
-    public static final String PLUGIN_NAME = "currency-plugin";
+    public static final String PLUGIN_NAME = "killbill-currency";
 
     private CurrencyConfigurationHandler currencyConfigurationHandler;
 
@@ -46,11 +48,15 @@ public class CurrencyActivator extends KillbillActivatorBase {
 
         final String region = PluginEnvironmentConfig.getRegion(configProperties.getProperties());
 
-        // Register an event listener for plugin configuration (optional)
+        // Register an event listener for plugin configuration
         currencyConfigurationHandler = new CurrencyConfigurationHandler(region, PLUGIN_NAME, killbillAPI);
-        final Properties globalConfiguration = currencyConfigurationHandler
-                .createConfigurable(configProperties.getProperties());
+        final Properties globalConfiguration = currencyConfigurationHandler.createConfigurable(configProperties.getProperties());
         currencyConfigurationHandler.setDefaultConfigurable(globalConfiguration);
+
+        // Register the CurrencyPluginApi
+        final CurrencyDao currencyDao = new CurrencyDao(dataSource.getDataSource());
+        final CurrencyPluginApi pluginApi = new StaticCurrencyPluginApi(currencyDao);
+        registerCurrencyPluginApi(context, pluginApi);
 
         // Expose a healthcheck, so other plugins can check on the plugin status
         final Healthcheck healthcheck = new CurrencyHealthcheck();
@@ -59,7 +65,12 @@ public class CurrencyActivator extends KillbillActivatorBase {
         // Register a servlet
         final PluginApp pluginApp = new PluginAppBuilder(PLUGIN_NAME, killbillAPI, dataSource, super.clock,
                                                          configProperties).withRouteClass(CurrencyServlet.class)
-                                                                          .withRouteClass(CurrencyHealthcheckServlet.class).withService(healthcheck).build();
+                                                                          .withRouteClass(CurrencyHealthcheckServlet.class)
+                                                                          .withService(healthcheck)
+                                                                          .withService(clock)
+                                                                          .withService(currencyDao)
+                                                                          .withService(pluginApi)
+                                                                          .build();
         final HttpServlet httpServlet = PluginApp.createServlet(pluginApp);
         registerServlet(context, httpServlet);
 
@@ -77,6 +88,12 @@ public class CurrencyActivator extends KillbillActivatorBase {
                 currencyConfigurationHandler);
 
         dispatcher.registerEventHandlers(configHandler);
+    }
+
+    private void registerCurrencyPluginApi(final BundleContext context, final CurrencyPluginApi api) {
+        final Hashtable<String, String> props = new Hashtable<String, String>();
+        props.put(OSGIPluginProperties.PLUGIN_NAME_PROP, PLUGIN_NAME);
+        registrar.registerService(context, CurrencyPluginApi.class, api, props);
     }
 
     private void registerServlet(final BundleContext context, final Servlet servlet) {
