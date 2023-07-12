@@ -6,7 +6,8 @@ A default currency plugin based on a set of static currency conversion tables.
 
 | Plugin version | Kill Bill version |
 |---------------:|------------------:|
-|          0.0.y |            0.24.z |
+|          0.0.y |            0.22.z |
+|          1.0.y |            0.24.z |
 
 ## Requirements
 
@@ -44,6 +45,21 @@ curl -v \
      -H 'X-Killbill-ApiKey: bob' \
      -H 'X-Killbill-ApiSecret: lazar' \
      'http://127.0.0.1:8080/plugins/killbill-currency/rates?baseCurrency=USD'
+```
+
+## Usage in a custom plugin
+
+Create a `ServiceTracker` to track the `CurrencyPluginApi`:
+
+```
+ServiceTracker<CurrencyPluginApi, CurrencyPluginApi> currencyPluginApiServiceTracker = new ServiceTracker<>(context, CurrencyPluginApi.class, null);
+currencyPluginApiServiceTracker.open();
+```
+
+The API can then be used in your plugin, e.g.:
+
+```
+currencyPluginApiServiceTracker.getService().getBaseCurrencies()
 ```
 
 ## About

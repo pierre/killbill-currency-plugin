@@ -26,7 +26,7 @@
     </parent>
     <groupId>org.kill-bill.billing.plugin.java</groupId>
     <artifactId>currency-plugin</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>1.0.0-SNAPSHOT</version>
     <packaging>bundle</packaging>
     <name>Kill Bill OSGI currency bundle</name>
     <description>Kill Bill currency plugin</description>
