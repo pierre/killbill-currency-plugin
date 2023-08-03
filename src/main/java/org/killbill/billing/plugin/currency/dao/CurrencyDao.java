@@ -73,22 +73,27 @@ public class CurrencyDao extends PluginDao {
                                                      toLocalDateTime(utcNow),
                                                      toLocalDateTime(utcNow),
                                                      kbTenantId == null ? null : kbTenantId.toString())
+                                             .onDuplicateKeyUpdate()
+                                             .set(CurrencyUpdates.CURRENCY_UPDATES.UPDATED_AT, toLocalDateTime(utcNow))
                                              .execute();
                                    final Integer currencyUpdateId = dslContext.lastID().intValue();
                                    targetCurrencyToRate.forEach((key, value) -> dslContext.insertInto(CurrencyRates.CURRENCY_RATES,
-                                                                                                      CurrencyRates.CURRENCY_RATES.TARGET_CURRENCY,
-                                                                                                      CurrencyRates.CURRENCY_RATES.RATE,
-                                                                                                      CurrencyRates.CURRENCY_RATES.CURRENCY_UPDATE_RECORD_ID,
-                                                                                                      CurrencyRates.CURRENCY_RATES.CREATED_AT,
-                                                                                                      CurrencyRates.CURRENCY_RATES.UPDATED_AT,
-                                                                                                      CurrencyRates.CURRENCY_RATES.KB_TENANT_ID)
-                                                                                          .values(key,
-                                                                                                  value,
-                                                                                                  currencyUpdateId,
-                                                                                                  toLocalDateTime(utcNow),
-                                                                                                  toLocalDateTime(utcNow),
-                                                                                                  kbTenantId == null ? null : kbTenantId.toString())
-                                                                                          .execute());
+                                                                                                       CurrencyRates.CURRENCY_RATES.TARGET_CURRENCY,
+                                                                                                       CurrencyRates.CURRENCY_RATES.RATE,
+                                                                                                       CurrencyRates.CURRENCY_RATES.CURRENCY_UPDATE_RECORD_ID,
+                                                                                                       CurrencyRates.CURRENCY_RATES.CREATED_AT,
+                                                                                                       CurrencyRates.CURRENCY_RATES.UPDATED_AT,
+                                                                                                       CurrencyRates.CURRENCY_RATES.KB_TENANT_ID)
+                                                                                           .values(key,
+                                                                                                   value,
+                                                                                                   currencyUpdateId,
+                                                                                                   toLocalDateTime(utcNow),
+                                                                                                   toLocalDateTime(utcNow),
+                                                                                                   kbTenantId == null ? null : kbTenantId.toString())
+                                                                                           .onDuplicateKeyUpdate()
+                                                                                           .set(CurrencyRates.CURRENCY_RATES.RATE, value)
+                                                                                           .set(CurrencyRates.CURRENCY_RATES.UPDATED_AT, toLocalDateTime(utcNow))
+                                                                                           .execute());
                                }
                            });
 
