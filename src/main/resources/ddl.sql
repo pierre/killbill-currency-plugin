@@ -27,6 +27,7 @@ create table currency_updates (
 , primary key(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 create index currency_updates_base_currency on currency_updates(base_currency);
+create unique index currency_updates_unique_index on currency_updates(base_currency, conversion_date, kb_tenant_id);
 
 create table currency_rates (
   record_id serial
